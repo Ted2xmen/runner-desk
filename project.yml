@@ -1,0 +1,55 @@
+# xcodegen spec. RunnerDesk.xcodeproj is generated (`xcodegen generate -q`) and not tracked.
+name: RunnerDesk
+options:
+  bundleIdPrefix: dev.ted2xmen
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+packages:
+  DeskCore:
+    path: DeskCore
+  # Terminal engine. MIT. Pinned in Config/Package.resolved (gate).
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm
+    exactVersion: 1.99.1
+settings:
+  base:
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
+    GCC_TREAT_WARNINGS_AS_ERRORS: YES
+    ENABLE_HARDENED_RUNTIME: YES
+    # Not sandboxed: Desk runs tmux in a pty. Ad-hoc signed for now; Developer ID at release.
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+targets:
+  RunnerDesk:
+    type: application
+    platform: macOS
+    sources:
+      - App/Sources
+      - App/Resources
+    dependencies:
+      - package: DeskCore
+        product: DeskCore
+      - package: SwiftTerm
+        product: SwiftTerm
+    settings:
+      base:
+        PRODUCT_NAME: Runner Desk
+        PRODUCT_MODULE_NAME: RunnerDesk
+        PRODUCT_BUNDLE_IDENTIFIER: dev.ted2xmen.runner-desk
+        # Base keys (the runnerdesk:// URL type) merged with the generated ones.
+        INFOPLIST_FILE: App/Info.plist
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Runner Desk
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
+        INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright (c) 2026 Tugrul Erdem Dogru. MIT License."
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"

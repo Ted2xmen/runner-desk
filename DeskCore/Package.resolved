@@ -1,0 +1,14 @@
+{
+  "originHash" : "ba288445b51b145ff11eddb191bdeb110ea37041a3b2ca4156239b7989ecde2e",
+  "pins" : [
+    {
+      "identity" : "shelf-runner",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Ted2xmen/shelf-runner",
+      "state" : {
+        "revision" : "e41a716f1f0b925463b5517d1e75ce772a9d24f6"
+      }
+    }
+  ],
+  "version" : 3
+}
