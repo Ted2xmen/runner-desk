@@ -44,7 +44,6 @@ import Testing
         #expect(t.groupSize("view-x") == ["display-message", "-p", "-t", "=view-x:", "#{session_group_size}"])
         #expect(t.killSession("view-x") == ["kill-session", "-t", "=view-x"])
         #expect(t.jobWindow(target) == ["display-message", "-p", "-t", "=shelf-SHELF-TEST:=\(id)", "#{window_id} #{window_name}"])
-        #expect(t.windowProbe("view-x") == ["display-message", "-p", "-t", "=view-x:", "#{window_id} #{window_name}"])
     }
 
     @Test func killOnlyWithAnotherGroupMember() {
@@ -55,11 +54,34 @@ import Testing
         #expect(!TmuxReply.mayKill(groupSize: nil))
     }
 
-    @Test func windowProbe() {
+    @Test func showsJobReadsTheWindowLine() {
         #expect(TmuxReply.showsJob("@3 \(id)\n", jobID: id))
         #expect(!TmuxReply.showsJob("@4 q-20261022T1610-0a0b\n", jobID: id))
         #expect(!TmuxReply.showsJob(" \n", jobID: id))
         #expect(!TmuxReply.showsJob("", jobID: id))
+    }
+
+    @Test func oneProbeForEveryView() {
+        let t = TmuxCommands(executable: "/t", socket: "work")
+        #expect(t.currentWindows() == ["-L", "work", "list-sessions", "-F", "#{session_name}\t#{window_id} #{window_name}"])
+        // As tmux 3.6 printed it: the view moved to another job's window once its own closed.
+        let windows = TmuxReply.currentWindows("shelf-X\t@0 q-1\nview-\(id)\t@0 q-1\nview-q-2\t@1 q-2\nodd line\n")
+        #expect(windows == ["shelf-X": "@0 q-1", "view-\(id)": "@0 q-1", "view-q-2": "@1 q-2"])
+        #expect(!TmuxReply.showsJob(windows["view-\(id)"] ?? "", jobID: id))
+        #expect(TmuxReply.showsJob(windows["view-q-2"] ?? "", jobID: "q-2"))
+        // A view missing from the list is closed, as a failed per-view probe was.
+        #expect(!TmuxReply.showsJob(windows["view-gone"] ?? "", jobID: id))
+        #expect(TmuxReply.currentWindows("") == [:])
+    }
+
+    @Test func noServerIsNotAFailure() {
+        // tmux 3.6a's words: a stale socket, a missing socket (or socket folder).
+        #expect(TmuxReply.noServer("no server running on /private/tmp/tmux-501/runner-desk\n"))
+        #expect(TmuxReply.noServer("error connecting to /private/tmp/tmux-501/runner-desk (No such file or directory)\n"))
+        #expect(!TmuxReply.noServer("error connecting to /private/tmp/tmux-501/runner-desk (Socket operation on non-socket)\n"))
+        #expect(!TmuxReply.noServer("error connecting to /private/tmp/tmux-501/runner-desk (Permission denied)\n"))
+        #expect(!TmuxReply.noServer("server exited unexpectedly\n"))
+        #expect(!TmuxReply.noServer(""))
     }
 
     @Test func copiedShellLine() {

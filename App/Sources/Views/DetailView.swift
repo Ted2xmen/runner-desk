@@ -10,7 +10,12 @@ struct DetailView: View {
 
     var body: some View {
         Group {
-            if let id = model.selectedJob, let detail = model.detail(id) {
+            if let id = model.selectedJob, let session = model.session(id) {
+                SessionPage(model: model, session: session, narrow: narrow)
+                    .id(id)
+            } else if let id = model.selectedJob, DeskSessionName.isValid(id) {
+                EmptyState(title: "Starting session…")
+            } else if let id = model.selectedJob, let detail = model.selectedDetail, detail.id == id {
                 JobPage(model: model, detail: detail, narrow: narrow)
                     .id(id)
             } else if let id = model.selectedJob {
@@ -25,7 +30,7 @@ struct DetailView: View {
                 Placeholder(model: model)
             }
         }
-        .background(Theme.bg)
+        .background(Theme.panel)
     }
 }
 
@@ -33,19 +38,33 @@ private struct Placeholder: View {
     let model: AppModel
 
     var body: some View {
+        let m = model.sidebar
+        if model.link != .looking, m.isBlank || (model.link == .absent && model.sessions.isEmpty) {
+            if model.deskServer != nil {
+                EmptyState(title: "Start your first session", sleeping: true,
+                           line: "Pick a folder and an agent. The session runs in the background and goes on when Runner Desk quits.",
+                           buttonTitle: "New session", buttonIcon: .commandLine) { model.showsNewSession = true }
+            } else {
+                EmptyState(title: "Runner Desk needs tmux", line: "Sessions run in tmux, out of sight.", mono: "brew install tmux")
+            }
+        } else {
+            linkState
+        }
+    }
+
+    @ViewBuilder private var linkState: some View {
         switch model.link {
         case .looking:
             EmptyState(title: "Looking for shelf-runner…", line: "Reading heartbeat.json")
         case .absent:
-            EmptyState(title: "No runner jobs here", line: "Autonomous jobs need shelf-runner. Desk shows its jobs and their terminals once it runs.",
-                       mono: AppModel.runnerInstall)
+            EmptyState(title: "Choose a session", sleeping: true, line: "A session opens its live terminal here.")
         case .unsupported:
             EmptyState(title: "Update shelf-runner", line: "This runner speaks another protocol version than Runner Desk.")
         case .connected, .offline:
-            if model.sidebar.folders.allSatisfy({ $0.active.isEmpty && $0.finished.isEmpty }) {
-                EmptyState(title: "No jobs yet", line: "Jobs you hand to an agent in Shelf, or queue with shelf-runner, show up here.")
+            if model.sessions.isEmpty && model.sidebar.folders.allSatisfy({ $0.active.isEmpty && $0.finished.isEmpty }) {
+                EmptyState(title: "No jobs yet", sleeping: true, line: "Jobs you hand to an agent in Shelf, or queue with shelf-runner, show up here.")
             } else {
-                EmptyState(title: "Choose a job", line: "A running job opens its live terminal here.")
+                EmptyState(title: "Choose a job", sleeping: true, line: "A running job opens its live terminal here.")
             }
         }
     }
@@ -93,31 +112,99 @@ private struct JobPage: View {
     }
 }
 
+/// One line over the work area, as high as the traffic lights' row: state chip, title, where
+/// and who, then the actions.
 private struct Header: View {
     let model: AppModel
     let detail: JobDetail
     let narrow: Bool
 
     var body: some View {
-        HStack(spacing: Theme.Metrics.gap) {
-            VStack(alignment: .leading, spacing: Theme.Space.tight) {
+        HStack(spacing: Theme.Space.mid) {
+            HStack(spacing: Theme.Space.row) {
+                LabelChip(label: detail.label)
                 Text(detail.title).font(Theme.Fonts.headerTitle).lineLimit(1)
-                HStack(spacing: Theme.Space.small) {
-                    LabelChip(label: detail.label)
-                    Text([detail.source, detail.agent, detail.mode].joined(separator: " · "))
-                        .font(Theme.Fonts.headerMeta).foregroundStyle(Theme.text2).lineLimit(1)
+                if detail.isFromShelf {
+                    IconView(icon: .shelfMark, size: Theme.Metrics.shelfMarkTile)
                 }
+                Text(((detail.isFromShelf ? ["From Shelf"] : []) + [detail.source, detail.agent, detail.mode]).joined(separator: " \u{00B7} "))
+                    .font(Theme.Fonts.headerMeta).foregroundStyle(Theme.muted).lineLimit(1)
             }
             .accessibilityElement(children: .combine)
-            Spacer(minLength: Theme.Metrics.gap)
+            Spacer(minLength: Theme.Space.mid)
+            if let folder = model.job(detail.id)?.folder { EditorButtons(folder: folder) }
             if case .terminal(let target) = detail.body, model.tmux != nil, model.views[detail.id] != .closed {
                 FramedButton(title: "Copy tmux command", icon: .copy, iconOnly: narrow) { model.copyTmuxCommand(target) }
                 FramedButton(title: "Open in Terminal", icon: .openExternal, iconOnly: narrow) { model.openInTerminal(target) }
             }
         }
-        .padding(.horizontal, Theme.Metrics.pagePadding)
-        .frame(height: Theme.Metrics.header)
-        .overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 1) }
+        .padding(.horizontal, Theme.Metrics.headerPaddingH)
+        .frame(height: Theme.Metrics.titleBar)
+        .overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: Theme.Metrics.divider) }
+    }
+}
+
+/// A Desk session: the header (state, "You · Claude", folder, actions), a shared-folder note,
+/// then its live terminal, or once the agent exited the exit code with Restart and End.
+private struct SessionPage: View {
+    let model: AppModel
+    let session: DeskSessionInfo
+    let narrow: Bool
+
+    var body: some View {
+        // The label and title do not move with the clock; the running time is a ticking leaf.
+        let row = SessionRow.make(session, asking: model.askingSessions.contains(session.id), now: session.created)
+        VStack(spacing: 0) {
+            HStack(spacing: Theme.Space.mid) {
+                HStack(spacing: Theme.Space.row) {
+                    LabelChip(label: row.label)
+                    Text(row.title).font(Theme.Fonts.headerTitle).lineLimit(1)
+                    Ticking(active: true) { now in
+                        let time = SessionRow.make(session, asking: false, now: now).time
+                        Text((session.folder as NSString).abbreviatingWithTildeInPath + " \u{00B7} " + time)
+                            .font(Theme.Fonts.headerMeta).foregroundStyle(Theme.muted).lineLimit(1).truncationMode(.head)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                Spacer(minLength: Theme.Space.mid)
+                EditorButtons(folder: session.folder)
+                if let server = model.deskServer {
+                    if !session.isDead {
+                        FramedButton(title: "Copy tmux command", icon: .copy, iconOnly: narrow) { server.copyCommand(session.id) }
+                        FramedButton(title: "Open in Terminal", icon: .openExternal, iconOnly: narrow) { server.openInTerminal(session.id) }
+                    }
+                    FramedButton(title: "End session", icon: .failed, iconOnly: narrow) { model.requestEnd(session.id) }
+                }
+            }
+            .padding(.horizontal, Theme.Metrics.headerPaddingH)
+            .frame(height: Theme.Metrics.titleBar)
+            .overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: Theme.Metrics.divider) }
+            let others = model.sessions.filter { $0.folder == session.folder && $0.id != session.id && !$0.isDead }.count
+            if let note = SessionWords.sharedFolder(otherSessions: others, runnerJob: model.liveJob(in: session.folder)) {
+                Strip(text: note, tone: .amber)
+            }
+            if session.isDead {
+                let words = SessionWords.exited(session)
+                VStack(alignment: .leading, spacing: Theme.Space.row) {
+                    HStack(spacing: Theme.Space.row) {
+                        IconView(icon: .alert).foregroundStyle(Theme.muted)
+                        Text(words.title).font(Theme.Fonts.cardTitle)
+                    }
+                    Text(words.line).font(Theme.Fonts.cardLine).foregroundStyle(Theme.text2)
+                    HStack(spacing: Theme.Space.row) {
+                        ActionButton(title: "Restart") { model.restartSession(session.id) }
+                        FramedButton(title: "End session", icon: .failed) { model.endSession(session.id) }
+                    }
+                    .padding(.top, Theme.Space.small)
+                }
+                .padding(Theme.Metrics.pagePadding)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else if let server = model.deskServer {
+                TerminalPane(executable: server.server.executable, args: server.server.attach(session.id),
+                             environment: DeskServerRunner.terminalEnvironment(),
+                             onExit: { model.pollSessions() })
+            }
+        }
     }
 }
 
@@ -140,7 +227,7 @@ private struct LiveTerminal: View {
                     Strip(text: "Finishing. The tmux window closed; the result shows here when the runner reports it.", tone: .plain)
                     Spacer()
                 case .preparing, .none:
-                    Color.clear
+                    OpeningWord()
                 }
             } else {
                 EmptyState(title: "tmux not found", line: "Set its path in ~/.config/shelf-runner/config.toml under [tmux].")
@@ -151,6 +238,30 @@ private struct LiveTerminal: View {
     }
 }
 
+/// Usually a few milliseconds: nothing at first, then a quiet word (not a spinner) only when
+/// opening takes long enough to be seen.
+private struct OpeningWord: View {
+    @State private var shows = false
+
+    var body: some View {
+        Group {
+            if shows {
+                Text("Opening…")
+                    .font(Theme.Fonts.emptyLine).foregroundStyle(Theme.muted)
+            } else {
+                Color.clear
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task {
+            try? await Task.sleep(for: Theme.Timing.openingDelay)
+            if !Task.isCancelled { shows = true }
+        }
+    }
+}
+
+/// A job without a terminal (first run, not signed, waiting, queued, unknown): an icon and a
+/// title, then plain lines, on the work area itself.
 private struct Card: View {
     let title: String
     let lines: [String]
@@ -165,17 +276,13 @@ private struct Card: View {
             }
             ForEach(lines, id: \.self) { Text($0).font(Theme.Fonts.cardLine).foregroundStyle(Theme.text2) }
         }
-        .padding(Theme.Metrics.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card).stroke(Theme.line2))
         .padding(Theme.Metrics.pagePadding)
-        .frame(maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .combine)
     }
 }
 
-/// An ended job: the result card, then its log.
+/// An ended job: the result on top, a hairline, then its log.
 private struct ResultPage: View {
     let model: AppModel
     let detail: JobDetail
@@ -201,10 +308,8 @@ private struct ResultPage: View {
                     FramedButton(title: "Copy log", icon: .copy) { model.copy(log.lines.joined(separator: "\n")) }
                 }
             }
-            .padding(Theme.Metrics.cardPadding)
-            .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card))
-            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card).stroke(Theme.line2))
             .padding(Theme.Metrics.pagePadding)
+            .overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: Theme.Metrics.divider) }
             if let log, !log.lines.isEmpty {
                 LogPane(log: log)
             } else if loaded {

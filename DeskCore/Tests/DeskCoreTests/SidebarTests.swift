@@ -12,10 +12,44 @@ import ShelfRunnerCore
     }
 
     @Test func connectionLine() throws {
-        #expect(try busy().connection == .connected("Connected · runner 0.3.0 · 20 s ago"))
+        let m = try busy()
+        let slots = StatusV1.Slots(max: 2, perFolder: 1, running: 2)
+        #expect(m.connection == .connected(runner: "0.3.0", seen: Fixture.seen, slots: slots))
+        #expect(m.connection.text == "shelf-runner running")
+        #expect(m.connection.tone == .green)
+        #expect(m.connection.accessibilityLabel == "shelf-runner running, version 0.3.0")
+        #expect(m.connection.help(now: now) == """
+            shelf-runner: the background service that runs agent jobs (not Shelf pairing).
+            Version 0.3.0
+            Last heard 20 s ago
+            Slots: 2 of 2 in use, 1 per folder
+            """)
+        #expect(m.connection.showsAge)
         let off = SidebarBuilder.build(status: try Fixture.status("status-busy"), link: .offline(lastSeen: Fixture.seen),
                                        now: Fixture.seen + 300, timeZone: Fixture.tz)
-        #expect(off.connection == .offline("Runner offline · last seen 5 min ago"))
+        #expect(off.connection == .offline(runner: "0.3.0", lastSeen: Fixture.seen))
+        #expect(off.connection.text == "shelf-runner offline")
+        #expect(off.connection.tone == .rose)
+        #expect(off.connection.help(now: Fixture.seen + 300).contains("\nLast heard 5 min ago\n"))
+        #expect(off.connection.help(now: Fixture.seen + 300).hasSuffix("Check it with shelf-runner doctor."))
+        let unread = ConnectionLine.offline(runner: nil, lastSeen: nil)
+        #expect(!unread.showsAge && unread.accessibilityLabel == "shelf-runner offline")
+        #expect(unread.help(now: now).contains("Its heartbeat cannot be read"))
+        #expect(ConnectionLine.looking.text == "Looking for shelf-runner…")
+        #expect(ConnectionLine.absent.text == "No shelf-runner")
+        #expect(ConnectionLine.absent.help(now: now).hasSuffix("autonomous jobs need it."))
+        #expect(ConnectionLine.unsupported(runner: "1.0.0").text == "Update shelf-runner")
+        #expect(ConnectionLine.unsupported(runner: "1.0.0").accessibilityLabel == "Update shelf-runner, version 1.0.0")
+    }
+
+    /// The clock alone does not change the model: the ages are written at draw time, so a
+    /// stored model set every second notifies nobody while nothing else moved.
+    @Test func theModelDoesNotMoveWithTheSecond() throws {
+        let status = try Fixture.status("status-busy")
+        let a = SidebarBuilder.build(status: status, link: online, now: now, timeZone: Fixture.tz)
+        let b = SidebarBuilder.build(status: status, link: online, now: now + 1, timeZone: Fixture.tz)
+        #expect(a == b)
+        #expect(a.connection.help(now: now) != b.connection.help(now: now + 1))
     }
 
     @Test func needsYouIsShelfsScope() throws {
@@ -29,6 +63,7 @@ import ShelfRunnerCore
     @Test func notSignedIsInNeedsYou() throws {
         let m = SidebarBuilder.build(status: try Fixture.status("status-unpaired"), link: online, now: now, timeZone: Fixture.tz)
         #expect(m.needsYou.map(\.label) == [Label("Not signed", .amber)])
+        #expect(m.needsYou.allSatisfy { !$0.isFromShelf })
     }
 
     @Test func stalledWithoutAQuestionStaysInItsFolder() throws {
@@ -44,10 +79,12 @@ import ShelfRunnerCore
         let m = try busy()
         #expect(m.folders.map(\.name) == ["SHELF-TEST", "Pantheon"])
         let test = m.folders[0]
+        // First run (2d4e), failed:1 (2222) and failed:timeout (4444) are in Needs you and here.
         #expect(test.active.map(\.id) == ["q-20261022T1630-7f3a", "q-20261022T1633-2d4e", "q-20261022T1631-0b2c",
                                           "q-20261022T1632-1c3d", "q-20261022T1625-4d4d"])
         #expect(test.finished.map(\.id) == ["q-20261022T1405-1111", "q-20261022T1300-5555"])
         #expect(test.finishedTotal == 5)
+        #expect(test.inNeedsYou == 3)
         #expect(test.showsFinishedToggle)
         #expect(test.finished.map(\.time) == ["14:19", "13:03"])
 
@@ -55,6 +92,25 @@ import ShelfRunnerCore
         #expect(open.folders[0].finished.map(\.id) == ["q-20261022T1405-1111", "q-20261022T1300-5555", "q-20261022T1200-2222",
                                                        "q-20261022T1100-3333", "q-20261021T0900-4444"])
         #expect(open.folders[0].isExpanded)
+    }
+
+    @Test func needsYouJobsStayInTheirFolder() throws {
+        // Expanded: an older ended job sits behind "Show all", like any other.
+        let m = try busy(expanded: ["/Users/test/SHELF-TEST", "/Users/test/Pantheon"])
+        let inFolders = Set(m.folders.flatMap { $0.active + $0.finished }.map(\.id))
+        #expect(m.needsYou.allSatisfy { inFolders.contains($0.id) })
+        let pantheon = m.folders.first { $0.name == "Pantheon" }
+        #expect(pantheon?.active.map(\.id) == ["q-20261022T1610-0a0b", "q-20261022T1612-3c3c", "q-20261022T1626-5e5e"])
+        #expect(pantheon?.inNeedsYou == 1)
+        #expect(pantheon?.emptyLine == nil)
+    }
+
+    @Test func offlineFoldersListEveryJob() throws {
+        // Offline Needs you is empty, so nothing is held back from the folders.
+        let m = SidebarBuilder.build(status: try Fixture.status("status-busy"), link: .offline(lastSeen: Fixture.seen),
+                                     now: Fixture.seen + 300, timeZone: Fixture.tz)
+        #expect(m.folders.allSatisfy { $0.inNeedsYou == 0 })
+        #expect(m.folders[0].finishedTotal == 5)
     }
 
     @Test func aJobFolderMissingFromFoldersStillShows() throws {
@@ -80,6 +136,7 @@ import ShelfRunnerCore
         #expect(row("q-20261022T1626-5e5e")?.label.text == "Paused")
         #expect(row("q-20261022T1405-1111")?.label == Label("Done", .green))
         #expect(row("q-20261022T1405-1111")?.now == nil)
+        #expect(rows.allSatisfy { $0.isFromShelf })
     }
 
     @Test func offlineIsUnknownAndQuiet() throws {
@@ -102,9 +159,11 @@ import ShelfRunnerCore
         #expect(m.limits.map(\.agent) == ["Claude", "Codex"])
         #expect(m.limits[0].bars.map(\.percent) == [34, 61])
         #expect(m.limits[0].bars.map(\.resets) == ["resets 19:00", "resets Tue 10:00"])
-        #expect(m.limits[0].source == "status line · 2 min ago")
+        #expect(m.limits[0].source == "status line")
+        #expect(m.limits[0].sourceLine(now: now) == "status line · 2 min ago")
         #expect(m.limits[1].bars.map(\.window) == ["Week"])
-        #expect(m.limits[1].source.hasPrefix("session · "))
+        #expect(m.limits[1].bars.map(\.short) == ["wk"])
+        #expect(m.limits[1].sourceLine(now: now).hasPrefix("session · "))
         #expect(m.scheduled.map(\.next) == ["Mon 09:00"])
     }
 
@@ -120,8 +179,8 @@ import ShelfRunnerCore
         let looking = SidebarBuilder.build(status: nil, link: .looking, now: now)
         #expect(looking.isLooking && looking.connection == .looking)
         let absent = SidebarBuilder.build(status: nil, link: .absent, now: now)
-        #expect(absent.showsRunnerFooter && absent.connection == .none && absent.folders.isEmpty)
+        #expect(absent.showsRunnerFooter && absent.connection == .absent && absent.folders.isEmpty)
         let update = SidebarBuilder.build(status: nil, link: .unsupported(runner: "1.0.0"), now: now)
-        #expect(update.connection == .unsupported("Update shelf-runner · runner 1.0.0"))
+        #expect(update.connection == .unsupported(runner: "1.0.0"))
     }
 }

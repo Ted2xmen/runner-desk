@@ -2,17 +2,28 @@ import AppKit
 import DeskCore
 import SwiftUI
 
-/// The one set of design tokens: Shelf's palette v2 and flat shell (no
-/// glass), same values in light and dark. Views never spell a color or a size.
+/// The one set of design tokens: Shelf's palette v2 in a terminal-first shell (sidebar, work
+/// area edge to edge, one status bar; hairlines between them, no raised panels), light and
+/// dark. Views never spell a color or a size.
 /// Rule: the accent (vermilion) is action and brand only, never a state.
 enum Theme {
     // Surfaces
-    static let bg = dynamic(light: 0xFAF8F5, dark: 0x0C0B0A)
-    static let card = dynamic(light: 0xFFFFFF, dark: 0x110F0E)
-    static let foot = dynamic(light: 0xF5F2EE, dark: 0x161413)
-    static let line = dynamic(light: 0xECE7E2, dark: 0x221F1D)
-    static let line2 = dynamic(light: 0xE0D9D2, dark: 0x2E2A27)
-    static let sel = dynamic(light: 0xF1ECE6, dark: 0x1C1917)
+    /// The chrome: sidebar and status bar.
+    static let bg = dynamic(light: 0xF0EEEB, dark: 0x0C0B0A)
+    /// The work area; the terminal and the log sit on it.
+    static let panel = dynamic(light: 0xFFFFFF, dark: 0x131110)
+    static let card = dynamic(light: 0xFFFFFF, dark: 0x1A1816)
+    static let foot = dynamic(light: 0xF7F5F2, dark: 0x1A1816)
+    static let line = dynamic(light: 0xE6E1DC, dark: 0x2A2623)
+    static let line2 = dynamic(light: 0xDCD6CF, dark: 0x34302C)
+    /// A sidebar row's ground when selected, and when hovered: fills on the window ground, no
+    /// edge (the accent is never selection).
+    static let rowSelected = dynamic(light: 0xE2DDD7, dark: 0x25221F)
+    static let rowHover = dynamic(light: 0xE9E5E1, dark: 0x191715)
+    /// The agent badge's tile in a sidebar row.
+    static let badge = dynamic(light: 0xE4DFD9, dark: 0x1F1C1A)
+    /// Claude's own orange, only on its mark (never a state).
+    static let claude = dynamic(light: 0xC15F3C, dark: 0xD97757)
     // Text and icons
     static let text = dynamic(light: 0x1A1715, dark: 0xF3F1EE)
     static let text2 = dynamic(light: 0x4D4741, dark: 0xC2BCB6)
@@ -36,10 +47,10 @@ enum Theme {
         }
     }
 
-    /// The terminal's ground and text (`bg`, `text`), resolved for one scheme: SwiftTerm takes a
+    /// The terminal's ground and text (`panel`, `text`), resolved for one scheme: SwiftTerm takes a
     /// fixed color, so a dynamic one would resolve outside the window's appearance.
     static func terminalColors(dark: Bool) -> (background: NSColor, foreground: NSColor) {
-        dark ? (NSColor(hex: 0x0C0B0A), NSColor(hex: 0xF3F1EE)) : (NSColor(hex: 0xFAF8F5), NSColor(hex: 0x1A1715))
+        dark ? (NSColor(hex: 0x131110), NSColor(hex: 0xF3F1EE)) : (NSColor(hex: 0xFFFFFF), NSColor(hex: 0x1A1715))
     }
 
     /// The 16 ANSI colors of the log pane (protocol v1: 0–15 are the theme's palette); xterm's.
@@ -49,35 +60,62 @@ enum Theme {
     ].map { Color(nsColor: NSColor(hex: $0)) }
 
     enum Metrics {
-        /// Sidebar: 264, 240 in a narrow window (900 pt).
-        static let sidebar: CGFloat = 264
-        static let sidebarNarrow: CGFloat = 240
-        /// Below this window width the sidebar narrows, Scheduled hides, header actions turn to icons.
+        /// Sidebar: 300, 264 in a narrow window (900 pt).
+        static let sidebar: CGFloat = 300
+        static let sidebarNarrow: CGFloat = 264
+        /// Below this window width the sidebar narrows, Scheduled hides, header actions turn to
+        /// icons, the status bar drops its plain segments.
         static let narrowWindow: CGFloat = 1000
         static let sidebarPadding: CGFloat = 16
-        /// Room for the traffic lights over the sidebar.
-        static let windowControlsRow: CGFloat = 44
-        static let header: CGFloat = 64
-        static let logo: CGFloat = 28
-        static let logoGlyph: CGFloat = 18
-        static let rowPaddingH: CGFloat = 10
-        static let rowPaddingV: CGFloat = 7
-        /// Job cards in the sidebar: taller than a list row, a card ground and a hairline edge.
-        static let jobCardPaddingH: CGFloat = 12
-        static let jobCardPaddingV: CGFloat = 11
-        static let jobCardGap: CGFloat = 6
-        static let jobCardBorder: CGFloat = 1
-        static let jobCardBorderSelected: CGFloat = 1.5
+        /// The sidebar's job list inset from its edges.
+        static let sidebarListInset: CGFloat = 6
+        /// The top row: the traffic lights over the sidebar, the job header over the work area;
+        /// one height so their hairline is one line.
+        static let titleBar: CGFloat = 50
+        /// The window-wide status bar at the bottom.
+        static let statusBar: CGFloat = 32
+        /// The job header's and the notice strips' side padding.
+        static let headerPaddingH: CGFloat = 14
+        static let statusBarPaddingH: CGFloat = 12
+        /// New session sheet.
+        static let sheetWidth: CGFloat = 460
+        static let sheetList: CGFloat = 190
+        /// The status bar's details popover.
+        static let popoverWidth: CGFloat = 300
+        /// Sidebar rows: folder headers, Show all, scheduled and empty lines.
+        static let rowHeight: CGFloat = 26
+        static let rowPaddingH: CGFloat = 8
+        static let rowGap: CGFloat = 2
+        /// Job and session rows: agent badge, two lines, the state at the right.
+        static let itemPaddingV: CGFloat = 7
+        static let itemMinHeight: CGFloat = 46
+        static let badge: CGFloat = 28
+        static let badgeIcon: CGFloat = 15
+        static let stateGlyph: CGFloat = 14
+        /// Shelf's mark on a badge's corner, and its tile.
+        static let shelfMark: CGFloat = 11
+        static let shelfMarkTile: CGFloat = 14
+        /// The state column at a row's right end.
+        static let stateColumn: CGFloat = 20
+        /// An editor's app icon on its button.
+        static let editorIcon: CGFloat = 16
+        /// The hover Stop button there.
+        static let stopButton: CGFloat = 24
+        /// The marker column: dot or state icon.
+        static let marker: CGFloat = 14
+        static let markerIcon: CGFloat = 12
+        static let divider: CGFloat = 1
         static let dot: CGFloat = 7
         static let dotRing: CGFloat = 3
         static let emptyWidth: CGFloat = 440
+        /// Between the sleeping robot and the empty state's title.
+        static let sleepingAgentGap: CGFloat = 14
         static let icon: CGFloat = 16
         static let iconSmall: CGFloat = 13
-        static let buttonHeight: CGFloat = 28
+        static let buttonHeight: CGFloat = 24
         static let limitBar: CGFloat = 5
         static let gap: CGFloat = 12
-        static let pagePadding: CGFloat = 28
-        static let cardPadding: CGFloat = 20
+        static let pagePadding: CGFloat = 20
         static let skeletonRow: CGFloat = 14
         static let skeletonLong: CGFloat = 180
         static let skeletonShort: CGFloat = 130
@@ -99,46 +137,62 @@ enum Theme {
         static let section: CGFloat = 18
     }
 
+    /// Waits before a word shows up: a step that usually ends first shows nothing, not a flash.
+    enum Timing {
+        /// A job view's "Opening…" (preparing takes some 10-15 ms).
+        static let openingDelay: Duration = .milliseconds(150)
+        /// One frame of the sleeping robot over an empty work area: slow, a calm breath.
+        static let sleepingAgentFrame: TimeInterval = 0.7
+    }
+
     enum Radius {
-        static let row: CGFloat = 9
-        static let jobCard: CGFloat = 10
+        static let row: CGFloat = 6
         static let card: CGFloat = 14
-        static let button: CGFloat = 8
+        static let button: CGFloat = 6
         static let logo: CGFloat = 8
         static let chip: CGFloat = 5
     }
 
-    /// Type (SF Pro; mono for `now`, tmux and logs).
+    /// Type: SF Pro for titles and sentences; SF Mono for everything the machine says (times,
+    /// counts, `now`, the status bar, tmux and logs).
     enum Fonts {
-        static let logo = Font.system(size: 15, weight: .semibold)
-        static let connection = Font.system(size: 12).monospacedDigit()
         static let section = Font.system(size: 12, weight: .semibold)
+        /// Sidebar section titles: small letter-spaced caps (Needs you, Scheduled, folders).
+        static let sectionCaps = Font.system(size: 10.5, weight: .semibold)
+        static let sectionCapsTracking: CGFloat = 0.7
         static let rowTitle = Font.system(size: 13, weight: .medium)
-        static let jobCardTitle = Font.system(size: 13.5, weight: .semibold)
-        static let rowMeta = Font.system(size: 11.5).monospacedDigit()
+        static let rowLabel = Font.system(size: 11, weight: .medium)
+        static let rowMeta = Font.system(size: 11)
+        static let rowMono = Font.system(size: 11, design: .monospaced)
         static let rowNow = Font.system(size: 11, design: .monospaced)
+        /// The status bar and its popover's figures.
+        static let status = Font.system(size: 11.5, design: .monospaced)
         static let footer = Font.system(size: 11.5)
         static let footerMono = Font.system(size: 11, design: .monospaced)
-        static let headerTitle = Font.system(size: 15, weight: .semibold)
-        static let headerMeta = Font.system(size: 12).monospacedDigit()
+        static let headerTitle = Font.system(size: 13, weight: .semibold)
+        static let headerMeta = Font.system(size: 11.5, design: .monospaced)
         static let chip = Font.system(size: 11.5, weight: .medium).monospacedDigit()
         static let button = Font.system(size: 12)
-        static let cardTitle = Font.system(size: 20, weight: .semibold)
+        static let cardTitle = Font.system(size: 17, weight: .semibold)
         static let cardLine = Font.system(size: 13.5)
         static let strip = Font.system(size: 12.5)
         static let log = Font.system(size: 12, design: .monospaced)
         static let emptyTitle = Font.system(size: 17, weight: .semibold)
         static let emptyLine = Font.system(size: 13)
+        /// The sleeping robot's ASCII art over an empty work area.
+        static let sleepingAgent = Font.system(size: 12, design: .monospaced)
         static let terminalSize: CGFloat = 12.5
     }
 
-    private static func dynamic(light: UInt32, dark: UInt32) -> Color {
-        Color(nsColor: nsDynamic(light: light, dark: dark))
+    private static func dynamic(light: UInt32, dark: UInt32, lightAlpha: CGFloat = 1, darkAlpha: CGFloat = 1) -> Color {
+        Color(nsColor: nsDynamic(light: light, dark: dark, lightAlpha: lightAlpha, darkAlpha: darkAlpha))
     }
 
-    private static func nsDynamic(light: UInt32, dark: UInt32) -> NSColor {
+    private static func nsDynamic(light: UInt32, dark: UInt32, lightAlpha: CGFloat, darkAlpha: CGFloat) -> NSColor {
         NSColor(name: nil) { appearance in
-            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? NSColor(hex: dark) : NSColor(hex: light)
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? NSColor(hex: dark).withAlphaComponent(darkAlpha)
+                : NSColor(hex: light).withAlphaComponent(lightAlpha)
         }
     }
 }
@@ -163,15 +217,28 @@ enum DeskIcon: String {
     case chevronDown = "ArrowDown01"
     case chevronRight = "ArrowRight01"
     case file = "File01"
+    /// shelf-runner, the background service.
+    case runner = "ServerStack01"
+    /// Claude's mark (Simple Icons, CC0; design/icons/agents/README.md).
+    case agentClaude = "AgentClaude"
+    /// Codex's mark (LobeHub Icons, MIT; design/icons/agents/README.md).
+    case agentCodex = "AgentCodex"
+    /// Shelf's mark, in its own colors: a job that came from Shelf.
+    case shelfMark = "ShelfMark"
+
+    /// Drawn in its own colors, not tinted.
+    var isMulticolor: Bool { self == .shelfMark }
 }
 
 struct IconView: View {
     let icon: DeskIcon
     var size: CGFloat = Theme.Metrics.icon
+    /// A multicolor icon drawn as a one-color silhouette in the foreground style.
+    var monochrome = false
 
     var body: some View {
         Image(icon.rawValue)
-            .renderingMode(.template)
+            .renderingMode(icon.isMulticolor && !monochrome ? .original : .template)
             .resizable()
             .frame(width: size, height: size)
             .accessibilityHidden(true)

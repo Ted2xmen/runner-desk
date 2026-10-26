@@ -76,10 +76,11 @@ public struct TmuxCommands: Equatable, Sendable {
 
     public func killSession(_ view: String) -> [String] { base + ["kill-session", "-t", "=" + view] }
 
-    /// The view's current window (the runner's `windowAlive` probe): the view is torn down as
-    /// soon as it no longer shows the job's window.
-    public func windowProbe(_ view: String) -> [String] {
-        base + ["display-message", "-p", "-t", "=" + view + ":", "#{window_id} #{window_name}"]
+    /// Every session's current window in one call, `<session>\t<window id> <window name>` per line
+    /// (the runner's `windowAlive` probe for every open view): a view is torn down as soon as it
+    /// no longer shows the job's window.
+    public func currentWindows() -> [String] {
+        base + ["list-sessions", "-F", "#{session_name}\t#{window_id} #{window_name}"]
     }
 
     /// The job's own window, before a view opens on it: a view on a closed window would land on
@@ -124,5 +125,23 @@ public enum TmuxReply {
     public static func showsJob(_ output: String, jobID: String) -> Bool {
         let parts = output.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: " ", maxSplits: 1)
         return parts.count == 2 && parts[0].hasPrefix("@") && parts[1] == jobID
+    }
+
+    /// `currentWindows`' lines by session name, each value a `<window id> <window name>` answer for `showsJob`.
+    public static func currentWindows(_ output: String) -> [String: String] {
+        var out: [String: String] = [:]
+        for line in output.split(separator: "\n", omittingEmptySubsequences: true) {
+            let parts = line.split(separator: "\t", maxSplits: 1, omittingEmptySubsequences: false)
+            if parts.count == 2 { out[String(parts[0])] = String(parts[1]) }
+        }
+        return out
+    }
+
+    /// A failed call's output says no server is running on the socket (a stale socket, or none):
+    /// it has no sessions. Any other failure says nothing about them.
+    public static func noServer(_ output: String) -> Bool {
+        let text = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.hasPrefix("no server running on ")
+            || (text.hasPrefix("error connecting to ") && text.hasSuffix("(No such file or directory)"))
     }
 }

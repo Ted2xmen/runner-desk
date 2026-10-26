@@ -11,8 +11,14 @@ struct TmuxRunner: Sendable {
     /// nil when tmux is not found (Desk then shows jobs without a terminal).
     static func resolve(paths: Paths = .current()) -> TmuxRunner? {
         let config = (try? Config.load(from: paths.configFile)) ?? Config()
-        guard let path = ExecutableLocator.find("tmux", configured: config.tmuxPath, home: paths.home) else { return nil }
+        guard let path = executable(paths: paths) else { return nil }
         return TmuxRunner(commands: TmuxCommands(executable: path, socket: config.tmuxSocket, configuredPath: config.tmuxPath != nil))
+    }
+
+    /// The tmux Desk runs: `config.toml [tmux] path`, else the usual places.
+    static func executable(paths: Paths = .current()) -> String? {
+        let config = (try? Config.load(from: paths.configFile)) ?? Config()
+        return ExecutableLocator.find("tmux", configured: config.tmuxPath, home: paths.home)
     }
 
     struct Output: Sendable {
@@ -29,24 +35,64 @@ struct TmuxRunner: Sendable {
     }
 
     func run(_ args: [String]) async -> Output {
-        let executable = commands.executable
-        return await withCheckedContinuation { continuation in
+        await Self.run(executable: commands.executable, args, environment: Self.environment())
+    }
+
+    /// One tmux call off the main thread: argv, never a shell; stdout and stderr together.
+    /// The pipe is drained while the child runs (a full 64 KB pipe buffer would block it forever);
+    /// the call returns once both EOF and exit have happened.
+    static func run(executable: String, _ args: [String], environment: [String: String]) async -> Output {
+        await withCheckedContinuation { continuation in
+            let join = RunJoin(continuation)
             let process = Process()
             process.executableURL = URL(fileURLWithPath: executable)
             process.arguments = args
-            process.environment = Self.environment()
+            process.environment = environment
             let pipe = Pipe()
             process.standardOutput = pipe
             process.standardError = pipe
             process.standardInput = FileHandle.nullDevice
-            process.terminationHandler = { p in
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                continuation.resume(returning: Output(status: p.terminationStatus, text: String(decoding: data, as: UTF8.self)))
-            }
+            process.terminationHandler = { p in join.exited(p.terminationStatus) }
             do { try process.run() } catch {
                 process.terminationHandler = nil
-                continuation.resume(returning: Output(status: -1, text: "\(error)"))
+                join.failed("\(error)")
+                return
             }
+            let reader = pipe.fileHandleForReading
+            DispatchQueue.global(qos: .utility).async {
+                join.read(reader.readDataToEndOfFile())
+            }
+        }
+    }
+
+    /// Resumes the continuation exactly once, after both the output's EOF and the exit status are in.
+    private final class RunJoin: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<Output, Never>?
+        private var data: Data?
+        private var status: Int32?
+
+        init(_ continuation: CheckedContinuation<Output, Never>) { self.continuation = continuation }
+
+        func read(_ data: Data) { finish { $0.data = data } }
+
+        func exited(_ status: Int32) { finish { $0.status = status } }
+
+        func failed(_ message: String) {
+            lock.lock()
+            let c = continuation
+            continuation = nil
+            lock.unlock()
+            c?.resume(returning: Output(status: -1, text: message))
+        }
+
+        private func finish(_ update: (RunJoin) -> Void) {
+            lock.lock()
+            update(self)
+            guard let data, let status, let c = continuation else { lock.unlock(); return }
+            continuation = nil
+            lock.unlock()
+            c.resume(returning: Output(status: status, text: String(decoding: data, as: UTF8.self)))
         }
     }
 
@@ -80,11 +126,6 @@ struct TmuxRunner: Sendable {
         if await run(commands.hasSession(plain)).status != 0 { return plain }
         var g = SystemRandomNumberGenerator()
         return ViewName.view(jobID, suffix: ViewName.suffix(using: &g))
-    }
-
-    func viewShowsJob(_ view: String, jobID: String) async -> Bool {
-        let out = await run(commands.windowProbe(view))
-        return out.status == 0 && TmuxReply.showsJob(out.text, jobID: jobID)
     }
 
     /// Kills a view only while another group member holds the job windows: killing the last member would take them with it.

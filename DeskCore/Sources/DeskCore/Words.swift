@@ -50,6 +50,10 @@ public enum JobPhase: Equatable, Sendable, Hashable {
         }
     }
 
+    /// Came from Shelf: the runner runs only lines signed with the pairing key, and only Shelf
+    /// signs them (the runner's CLI does not). An unsigned line waits as `waiting:signature`.
+    public var isFromShelf: Bool { self != .waiting("signature") }
+
     /// Has a tmux window the runner still watches.
     public var isLive: Bool { self == .running || self == .stalled }
 }

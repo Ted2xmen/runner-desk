@@ -16,15 +16,27 @@ enum DeskFiles {
 
     static func attachFile(id: String) -> URL { attachDir.appendingPathComponent("\(id).command") }
 
+    /// Desk's own tmux server's conf, rewritten on every launch.
+    static var tmuxConf: URL { supportDir.appendingPathComponent("tmux.conf") }
+
+    /// Folders Desk opened sessions in.
+    static var recentFile: URL { supportDir.appendingPathComponent("recent.json") }
+
     /// The runner's `heartbeat.json`.
     static func heartbeat(_ paths: Paths) -> URL { paths.stateDir.appendingPathComponent("heartbeat.json") }
 
+    private static let sweepQueue = DispatchQueue(label: "runner-desk.attach-sweep", qos: .utility)
+
     /// Removes the scripts of jobs no longer live; at launch (`keep` empty) all of them.
+    /// Fire and forget: the scan runs on a serial background queue, in call order.
     static func sweepAttachScripts(keep: Set<String>) {
-        let fm = FileManager.default
-        for url in (try? fm.contentsOfDirectory(at: attachDir, includingPropertiesForKeys: nil)) ?? []
-        where url.pathExtension == "command" && !keep.contains(url.deletingPathExtension().lastPathComponent) {
-            try? fm.removeItem(at: url)
+        let dir = attachDir
+        sweepQueue.async {
+            let fm = FileManager.default
+            for url in (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
+            where url.pathExtension == "command" && !keep.contains(url.deletingPathExtension().lastPathComponent) {
+                try? fm.removeItem(at: url)
+            }
         }
     }
 }

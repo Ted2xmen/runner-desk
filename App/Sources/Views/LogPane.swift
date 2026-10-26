@@ -64,7 +64,7 @@ enum LogStyle {
         var bg = color(style.bg)
         if style.flags & AnsiText.Style.inverse != 0 {
             let f = fg ?? Theme.text2
-            fg = bg ?? Theme.bg
+            fg = bg ?? Theme.panel
             bg = f
         }
         if style.flags & AnsiText.Style.dim != 0 { fg = Theme.muted }

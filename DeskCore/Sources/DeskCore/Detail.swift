@@ -48,6 +48,8 @@ public struct JobDetail: Equatable, Sendable {
     public let body: Body
     /// For the log reader: the job's `mode` decides screen capture or log file.
     public let isAttended: Bool
+    /// Signed, so written by Shelf (`JobPhase.isFromShelf`).
+    public let isFromShelf: Bool
 }
 
 public enum DetailBuilder {
@@ -86,7 +88,7 @@ public enum DetailBuilder {
         }
         return JobDetail(id: job.id, title: job.title, folder: folder, source: source(folder: folder, ref: job.ref),
                          agent: Words.agent(job.agent), mode: job.mode, label: label, body: body,
-                         isAttended: job.mode == "attended")
+                         isAttended: job.mode == "attended", isFromShelf: phase.isFromShelf)
     }
 
     /// `ref` = `<path>@<h8>` with `%20`, `%40`, `%25` escapes (protocol v1); without one, the folder alone.
