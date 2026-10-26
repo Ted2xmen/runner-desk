@@ -1,8 +1,8 @@
-import DeskCore
-import ShelfRunnerCore
+import BenchCore
+import ShelfBridgeCore
 import SwiftUI
 
-/// An ended job's log: plain lines with the colors `AnsiText` found (protocol v1 colors),
+/// An ended job's log: plain lines with the colors `AnsiText` found (protocol v2 colors),
 /// newest at the bottom. Lines are the agent's own output, drawn as text.
 struct LogPane: View {
     let log: FinishedLog.Lines

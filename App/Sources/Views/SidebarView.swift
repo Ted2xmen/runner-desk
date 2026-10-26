@@ -1,8 +1,8 @@
-import DeskCore
+import BenchCore
 import SwiftUI
 
-/// The sidebar is a list of jobs and Desk sessions, nothing else: New session in the traffic
-/// lights' row, Needs you, folders that fold (sessions first, then runner jobs), Scheduled. Each
+/// The sidebar is a list of jobs and Bench sessions, nothing else: New session in the traffic
+/// lights' row, Needs you, folders that fold (sessions first, then Bridge jobs), Scheduled. Each
 /// job and session shows once. Connection, This Mac and limits live in the status bar.
 struct SidebarView: View {
     let model: AppModel
@@ -14,7 +14,7 @@ struct SidebarView: View {
             // The traffic lights' row, New session at its right end.
             HStack {
                 Spacer()
-                NewSessionButton(enabled: model.deskServer != nil) { model.newSessionFolder = nil; model.showsNewSession = true }
+                NewSessionButton(enabled: model.benchServer != nil) { model.newSessionFolder = nil; model.showsNewSession = true }
             }
             .padding(.horizontal, Theme.Metrics.sidebarListInset)
             .frame(height: Theme.Metrics.titleBar)
@@ -41,7 +41,7 @@ struct SidebarView: View {
                                        select: { model.select($0, in: .folder) }, end: { model.requestEnd($0) },
                                        fold: { toggle(&model.collapsed, folder.id) },
                                        showAll: { toggle(&model.expanded, folder.id) },
-                                       newSession: model.deskServer == nil ? nil : { model.startNewSession(in: folder.id) })
+                                       newSession: model.benchServer == nil ? nil : { model.startNewSession(in: folder.id) })
                         }
                         if !narrow && !m.scheduled.isEmpty {
                             SectionTitle(text: "Scheduled", count: m.scheduled.count, tone: .muted)
@@ -332,7 +332,7 @@ struct StateGlyph: View {
     }
 }
 
-/// A Desk session: the agent's badge; "You · Claude", and under it its word and time (in Needs
+/// A Bench session: the agent's badge; "You · Claude", and under it its word and time (in Needs
 /// you also the folder); at the right spinning while it works, a dot when idle, the stop square
 /// once it exited. On hover the right end turns into Stop (End session, which asks first when
 /// something still runs).
@@ -406,7 +406,7 @@ private struct NewSessionButton: View {
         .buttonStyle(.plain)
         .disabled(!enabled)
         .onHover { hovering = $0 }
-        .help(enabled ? "New session (\u{2318}N)" : "Runner Desk needs tmux: brew install tmux")
+        .help(enabled ? "New session (\u{2318}N)" : "Shelf Bench needs tmux: brew install tmux")
         .accessibilityLabel("New session")
     }
 }
@@ -430,7 +430,7 @@ private struct ScheduledRowView: View {
     }
 }
 
-/// Opening: grey rows while Desk looks for the runner.
+/// Opening: grey rows while Bench looks for Bridge.
 private struct SkeletonRows: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.mid) {
@@ -442,6 +442,6 @@ private struct SkeletonRows: View {
         }
         .padding(.horizontal, Theme.Metrics.rowPaddingH)
         .padding(.top, Theme.Space.section)
-        .accessibilityLabel("Looking for shelf-runner")
+        .accessibilityLabel("Looking for shelf-bridge")
     }
 }

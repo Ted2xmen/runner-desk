@@ -1,31 +1,31 @@
 import AppKit
-import DeskCore
+import BenchCore
 import Foundation
-import ShelfRunnerCore
+import ShelfBridgeCore
 
-/// Desk's own folder and what it reads of the runner's (read only: Desk never writes there,
-/// Desk never writes there).
-enum DeskFiles {
-    /// `~/Library/Application Support/Runner Desk/`.
+/// Bench's own folder and what it reads of Bridge's (read only: Bench never writes there,
+/// Bench never writes there).
+enum BenchFiles {
+    /// `~/Library/Application Support/Shelf Bench/`.
     static var supportDir: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Runner Desk", isDirectory: true)
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Shelf Bench", isDirectory: true)
     }
 
-    /// Open in Terminal's scripts: never the runner's `attach` folder, which it sweeps.
+    /// Open in Terminal's scripts: never Bridge's `attach` folder, which it sweeps.
     static var attachDir: URL { supportDir.appendingPathComponent("attach", isDirectory: true) }
 
     static func attachFile(id: String) -> URL { attachDir.appendingPathComponent("\(id).command") }
 
-    /// Desk's own tmux server's conf, rewritten on every launch.
+    /// Bench's own tmux server's conf, rewritten on every launch.
     static var tmuxConf: URL { supportDir.appendingPathComponent("tmux.conf") }
 
-    /// Folders Desk opened sessions in.
+    /// Folders Bench opened sessions in.
     static var recentFile: URL { supportDir.appendingPathComponent("recent.json") }
 
-    /// The runner's `heartbeat.json`.
+    /// Bridge's `heartbeat.json`.
     static func heartbeat(_ paths: Paths) -> URL { paths.stateDir.appendingPathComponent("heartbeat.json") }
 
-    private static let sweepQueue = DispatchQueue(label: "runner-desk.attach-sweep", qos: .utility)
+    private static let sweepQueue = DispatchQueue(label: "shelf-bench.attach-sweep", qos: .utility)
 
     /// Removes the scripts of jobs no longer live; at launch (`keep` empty) all of them.
     /// Fire and forget: the scan runs on a serial background queue, in call order.
@@ -68,9 +68,9 @@ enum TerminalHandoff {
         let name = ViewName.terminal(target.window, suffix: ViewName.suffix(using: &g))
         let script = tmux.commandScript(tmux.openView(target, name: name, statusBar: true))
         let fm = FileManager.default
-        let file = DeskFiles.attachFile(id: target.window)
+        let file = BenchFiles.attachFile(id: target.window)
         do {
-            try fm.createDirectory(at: DeskFiles.attachDir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            try fm.createDirectory(at: BenchFiles.attachDir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             try? fm.removeItem(at: file)
             guard fm.createFile(atPath: file.path, contents: Data(script.utf8), attributes: [.posixPermissions: 0o700]) else { return false }
         } catch {

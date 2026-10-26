@@ -6,10 +6,10 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>dev.ted2xmen.runner-desk.job</string>
+			<string>dev.ted2xmen.shelf-bench.job</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>runnerdesk</string>
+				<string>shelfbench</string>
 			</array>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>

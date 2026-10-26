@@ -25,12 +25,12 @@ enum Appearance: String, CaseIterable, Identifiable, Sendable {
         UserDefaults.standard.string(forKey: defaultsKey).flatMap(Appearance.init(rawValue:)) ?? .system
     }
 
-    /// Debug builds only: `RUNNER_DESK_APPEARANCE=light|dark` wins over the saved choice at launch,
+    /// Debug builds only: `SHELF_BENCH_APPEARANCE=light|dark` wins over the saved choice at launch,
     /// so a snapshot run can pin a scheme without touching the user's defaults. A choice made in
     /// Settings after launch still applies.
     static var override: Appearance? {
         #if DEBUG
-        guard let value = ProcessInfo.processInfo.environment["RUNNER_DESK_APPEARANCE"]?.lowercased() else { return nil }
+        guard let value = ProcessInfo.processInfo.environment["SHELF_BENCH_APPEARANCE"]?.lowercased() else { return nil }
         return Appearance(rawValue: value)
         #else
         return nil

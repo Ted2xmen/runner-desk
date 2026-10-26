@@ -1,11 +1,11 @@
 import AppKit
-import DeskCore
+import BenchCore
 import Foundation
 import Observation
-import ShelfRunnerCore
+import ShelfBridgeCore
 
 /// The app's one model. It holds what was heard and chosen; every word and grouping comes
-/// from DeskCore (`SidebarBuilder`, `DetailBuilder`, `LinkRule`). It owns the tmux views'
+/// from BenchCore (`SidebarBuilder`, `DetailBuilder`, `LinkRule`). It owns the tmux views'
 /// lives: open on select, close on deselect, on quit, and when a view stops showing its job.
 @MainActor
 @Observable
@@ -27,8 +27,8 @@ final class AppModel {
 
     let paths = Paths.current()
     let tmux = TmuxRunner.resolve()
-    /// Desk's own tmux server for Desk sessions; nil without tmux.
-    let deskServer = DeskServerRunner.resolve()
+    /// Bench's own tmux server for Bench sessions; nil without tmux.
+    let benchServer = BenchServerRunner.resolve()
     let launchedAt = Date()
 
     // Inputs of the derived values below: each change rebuilds them (`refresh`).
@@ -64,11 +64,11 @@ final class AppModel {
     /// Folders folded shut in the sidebar (their jobs hidden).
     var collapsed: Set<String> = []
 
-    /// Desk's own sessions, as the server last reported them.
-    private(set) var sessions: [DeskSessionInfo] = [] { didSet { refresh() } }
+    /// Bench's own sessions, as the server last reported them.
+    private(set) var sessions: [BenchSessionInfo] = [] { didSet { refresh() } }
     /// Sessions found asking on their screen.
     private(set) var askingSessions: Set<String> = [] { didSet { refresh() } }
-    /// Folders Desk opened sessions in, newest first.
+    /// Folders Bench opened sessions in, newest first.
     private(set) var recents: [String] = RecentFolders.load() { didSet { refresh() } }
     /// The Shelf app is open (debug and release builds share one bundle id).
     private(set) var shelfRunning = false { didSet { refresh() } }
@@ -94,15 +94,15 @@ final class AppModel {
 
     private init() { rebuild() }
 
-    // MARK: derived (DeskCore)
+    // MARK: derived (BenchCore)
 
-    var status: StatusV1? { if case .status(let s) = latest { s } else { nil } }
+    var status: StatusV2? { if case .status(let s) = latest { s } else { nil } }
 
     // Stored, not computed: rebuilt by `refresh` and set whole, so an unchanged value (the
     // usual case on a clock tick) notifies nobody.
-    private(set) var link: RunnerLink = .looking
+    private(set) var link: BridgeLink = .looking
     private(set) var sidebar = SidebarModel()
-    /// The selected runner job's work area; nil when the selection is not a job in the status.
+    /// The selected Bridge job's work area; nil when the selection is not a job in the status.
     private(set) var selectedDetail: JobDetail?
 
     /// Rebuilds the derived values from their inputs: `latest`, `heartbeatExists`, `now`,
@@ -130,14 +130,14 @@ final class AppModel {
         refresh()
     }
 
-    func session(_ id: String) -> DeskSessionInfo? { sessions.first { $0.id == id } }
+    func session(_ id: String) -> BenchSessionInfo? { sessions.first { $0.id == id } }
 
-    func job(_ id: String) -> StatusV1.Job? { status?.jobs.first { $0.id == id } }
+    func job(_ id: String) -> StatusV2.Job? { status?.jobs.first { $0.id == id } }
 
     // MARK: life
 
     func start() {
-        DeskFiles.sweepAttachScripts(keep: [])
+        BenchFiles.sweepAttachScripts(keep: [])
         let feed = StatusFeed(paths: paths) { [weak self] reading, exists in self?.ingest(reading, heartbeatExists: exists) }
         self.feed = feed
         feed.start()
@@ -153,9 +153,9 @@ final class AppModel {
                 }
             },
         ]
-        if let deskServer {
+        if let benchServer {
             Task {
-                await deskServer.prepare()
+                await benchServer.prepare()
                 self.pollSessions()
             }
         }
@@ -185,7 +185,7 @@ final class AppModel {
         if shelfRunning != running { shelfRunning = running }
     }
 
-    /// Quitting: close every view Desk opened (group-size check, `=` targets); the runner's
+    /// Quitting: close every view Bench opened (group-size check, `=` targets); Bridge's
     /// `shelf-*` sessions and their jobs go on.
     func closeAllViewsNow() {
         guard let tmux else { return }
@@ -205,7 +205,7 @@ final class AppModel {
             now = Date()
         }
         let live = Set((status?.jobs ?? []).filter { JobPhase(state: $0.state).isLive }.map(\.id))
-        DeskFiles.sweepAttachScripts(keep: live.union(sessions.map(\.id)))
+        BenchFiles.sweepAttachScripts(keep: live.union(sessions.map(\.id)))
         // A job that ended has no terminal any more: its view (if any) is closed by tmux with it.
         for id in views.keys where !live.contains(id) && status != nil { forget(id) }
     }
@@ -219,21 +219,21 @@ final class AppModel {
     // MARK: URL
 
     func open(_ url: URL) {
-        if let link = DeskURL.enableLink(url) {
+        if let link = BenchURL.enableLink(url) {
             switch link {
             case .path(let path): askToEnable(path, from: .link)
             case .malformed: askToEnable(nil, from: .link)
             }
             return
         }
-        guard let id = DeskURL.jobID(url) else { return }
+        guard let id = BenchURL.jobID(url) else { return }
         reveal(id)
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    // MARK: enabling a folder in shelf-runner
+    // MARK: enabling a folder in shelf-bridge
 
-    /// The confirmation sheet for one folder: a link opens it on the Desk window, Settings'
+    /// The confirmation sheet for one folder: a link opens it on the Bench window, Settings'
     /// "Add folder…" on the Settings window.
     struct EnableSheet: Identifiable, Equatable {
         enum Origin: Equatable { case link, settings }
@@ -251,11 +251,11 @@ final class AppModel {
     /// Always asks: nothing is enabled before the user says yes. `path` nil: a link without a usable path.
     func askToEnable(_ path: String?, from origin: EnableSheet.Origin) {
         if enableSheet?.phase.isRunning == true { return }
-        let request = path.map(ShelfRunnerCLI.request) ?? EnableFolderRequest(requested: "", check: .problem(.malformedLink), home: NSHomeDirectory())
-        let executable = request.path == nil ? nil : ShelfRunnerCLI.locate(paths: paths)
+        let request = path.map(ShelfBridgeCLI.request) ?? EnableFolderRequest(requested: "", check: .problem(.malformedLink), home: NSHomeDirectory())
+        let executable = request.path == nil ? nil : ShelfBridgeCLI.locate(paths: paths)
         let phase = EnableFolderPhase.initial(check: request.check, folders: status?.folders, cliFound: executable != nil)
         if origin == .link {
-            // One sheet at a time on the Desk window.
+            // One sheet at a time on the Bench window.
             showsNewSession = false
             confirmingEnd = nil
             NSApp.activate(ignoringOtherApps: true)
@@ -271,7 +271,7 @@ final class AppModel {
         enableSheet = sheet
         let id = sheet.id
         Task {
-            let outcome = await ShelfRunnerCLI.enable(path, executable: executable)
+            let outcome = await ShelfBridgeCLI.enable(path, executable: executable)
             guard self.enableSheet?.id == id else { return }
             self.enableSheet?.phase = EnableFolderPhase.after(outcome)
             if case .enabled = outcome { self.feed?.ping() }
@@ -315,7 +315,7 @@ final class AppModel {
 
     /// Every open view, selected or not: when it no longer shows its job's window
     /// (the window closed and tmux moved the view to another job's), close it before a key
-    /// reaches the wrong agent. One `list-sessions` on the runner's server answers for every view
+    /// reaches the wrong agent. One `list-sessions` on Bridge's server answers for every view
     /// (each view's current window); a view missing from it, or a failed call, is closed.
     private func probeViews() {
         guard let tmux else { return }
@@ -334,12 +334,12 @@ final class AppModel {
         }
     }
 
-    // MARK: Desk sessions
+    // MARK: Bench sessions
 
     /// Reads the server's sessions, then looks for questions on quiet, changed screens. A request
     /// while a poll runs is not dropped: one more pass runs right after.
     func pollSessions() {
-        guard let deskServer else { return }
+        guard let benchServer else { return }
         guard !polling else {
             pollAgain = true
             return
@@ -348,23 +348,23 @@ final class AppModel {
         Task {
             repeat {
                 pollAgain = false
-                await pollOnce(deskServer)
+                await pollOnce(benchServer)
             } while pollAgain
             polling = false
         }
     }
 
-    private func pollOnce(_ deskServer: DeskServerRunner) async {
+    private func pollOnce(_ benchServer: BenchServerRunner) async {
         let started = mutation
         // A failed call (not "no server") keeps the sessions and the selection as they were.
-        guard let list = await deskServer.list(), started == mutation else { return }
+        guard let list = await benchServer.list(), started == mutation else { return }
         if list != sessions { sessions = list }
         let now = Date()
         var asking = askingSessions.intersection(list.filter { !$0.isDead && now.timeIntervalSince($0.activity) >= SessionAsking.quiet }.map(\.id))
         let due = list.filter { SessionAsking.shouldCapture($0, lastLookedAt: lookedAt[$0.id], now: now) }
         for s in due { lookedAt[s.id] = s.activity }
         let screens = await withTaskGroup(of: (String, String?).self, returning: [String: String].self) { group in
-            for s in due { group.addTask { (s.id, await deskServer.capture(s.id)) } }
+            for s in due { group.addTask { (s.id, await benchServer.capture(s.id)) } }
             var out: [String: String] = [:]
             for await (id, screen) in group { out[id] = screen }
             return out
@@ -377,7 +377,7 @@ final class AppModel {
         guard started == mutation else { return }
         batched {
             askingSessions = asking
-            if let id = selectedJob, DeskSessionName.isValid(id), !list.contains(where: { $0.id == id }) { selectedJob = nil }
+            if let id = selectedJob, BenchSessionName.isValid(id), !list.contains(where: { $0.id == id }) { selectedJob = nil }
         }
     }
 
@@ -387,17 +387,17 @@ final class AppModel {
         showsNewSession = true
     }
 
-    func newSession(folder: String, agent: DeskAgent) {
-        guard let deskServer else { return }
+    func newSession(folder: String, agent: BenchAgent) {
+        guard let benchServer else { return }
         var g = SystemRandomNumberGenerator()
-        let name = DeskSessionName.make(using: &g)
+        let name = BenchSessionName.make(using: &g)
         mutation += 1
         recents = RecentFolders.adding(folder, to: recents)
         RecentFolders.save(recents)
         Task {
-            guard await deskServer.start(name: name, folder: folder, agent: agent) else { return }
+            guard await benchServer.start(name: name, folder: folder, agent: agent) else { return }
             self.mutation += 1
-            let list = await deskServer.list()
+            let list = await benchServer.list()
             self.batched {
                 if let list { self.sessions = list }
                 self.select(name, in: .folder)
@@ -408,11 +408,11 @@ final class AppModel {
     /// End: asks first when something other than an idle shell runs in it.
     func requestEnd(_ id: String) {
         guard let s = session(id) else { return }
-        if s.endNeedsConfirmation(shell: DeskServerRunner.loginShell) { confirmingEnd = id } else { endSession(id) }
+        if s.endNeedsConfirmation(shell: BenchServerRunner.loginShell) { confirmingEnd = id } else { endSession(id) }
     }
 
     func endSession(_ id: String) {
-        guard let deskServer, DeskSessionName.isValid(id) else { return }
+        guard let benchServer, BenchSessionName.isValid(id) else { return }
         confirmingEnd = nil
         mutation += 1
         batched {
@@ -421,35 +421,35 @@ final class AppModel {
             if selectedJob == id { selectedJob = nil }
         }
         Task {
-            await deskServer.kill(id)
+            await benchServer.kill(id)
             self.mutation += 1
-            if let list = await deskServer.list() { self.sessions = list }
+            if let list = await benchServer.list() { self.sessions = list }
         }
     }
 
     func restartSession(_ id: String) {
-        guard let deskServer else { return }
+        guard let benchServer else { return }
         mutation += 1
         Task {
-            await deskServer.respawn(id)
+            await benchServer.respawn(id)
             self.mutation += 1
-            if let list = await deskServer.list() { self.sessions = list }
+            if let list = await benchServer.list() { self.sessions = list }
         }
     }
 
-    /// A live runner job in this folder (for the shared-folder note).
+    /// A live Bridge job in this folder (for the shared-folder note).
     func liveJob(in folder: String) -> String? {
         status?.jobs.first { $0.folder == folder && JobPhase(state: $0.state).isLive }?.id
     }
 
-    /// Folders New session offers: the runner's enabled folders, then recent ones.
+    /// Folders New session offers: Bridge's enabled folders, then recent ones.
     var sessionFolders: [(path: String, source: String)] {
-        var out: [(String, String)] = (status?.folders ?? []).map { ($0, "runner") }
+        var out: [(String, String)] = (status?.folders ?? []).map { ($0, "bridge") }
         for f in recents where !out.contains(where: { $0.0 == f }) { out.append((f, "recent")) }
         return out
     }
 
-    // MARK: actions without the runner (D1: no Stop, Run, Retry)
+    // MARK: actions without Bridge (D1: no Stop, Run, Retry)
 
     func copyTmuxCommand(_ target: TmuxTarget) {
         guard let tmux else { return }
@@ -461,8 +461,8 @@ final class AppModel {
         TerminalHandoff.openInTerminal(tmux.commands, target: target)
     }
 
-    /// The install line of the "no runner" footer (the tap's cask name may still change).
-    static let runnerInstall = "brew install --cask ted2xmen/tap/shelf-runner"
+    /// The install line of the "no Bridge" footer (the tap's cask name may still change).
+    static let bridgeInstall = "brew install --cask ted2xmen/tap/shelf-bridge"
 
     func copy(_ text: String) { TerminalHandoff.copy(text: text) }
 

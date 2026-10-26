@@ -10,11 +10,11 @@
       }
     },
     {
-      "identity": "shelf-runner",
+      "identity": "shelf-bridge",
       "kind": "remoteSourceControl",
-      "location": "https://github.com/Ted2xmen/shelf-runner",
+      "location": "https://github.com/Ted2xmen/shelf-bridge",
       "state": {
-        "revision": "e41a716f1f0b925463b5517d1e75ce772a9d24f6"
+        "revision": "f815abd57072efef572f5244cee62b7ae1bd3866"
       }
     },
     {

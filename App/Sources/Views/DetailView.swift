@@ -1,9 +1,9 @@
-import DeskCore
+import BenchCore
 import SwiftUI
 
 /// The work area, D1: header strip with Copy tmux command and Open in Terminal (no
 /// Stop), the live terminal, or the result card and log, or a waiting card. Empty and
-/// in-between states: opening, no jobs, no runner, nothing selected.
+/// in-between states: opening, no jobs, no Bridge, nothing selected.
 struct DetailView: View {
     let model: AppModel
     let narrow: Bool
@@ -13,17 +13,17 @@ struct DetailView: View {
             if let id = model.selectedJob, let session = model.session(id) {
                 SessionPage(model: model, session: session, narrow: narrow)
                     .id(id)
-            } else if let id = model.selectedJob, DeskSessionName.isValid(id) {
+            } else if let id = model.selectedJob, BenchSessionName.isValid(id) {
                 EmptyState(title: "Starting session…")
             } else if let id = model.selectedJob, let detail = model.selectedDetail, detail.id == id {
                 JobPage(model: model, detail: detail, narrow: narrow)
                     .id(id)
             } else if let id = model.selectedJob {
                 if model.link == .looking {
-                    EmptyState(title: "Opening job \(id)…", line: "Looking for shelf-runner…")
+                    EmptyState(title: "Opening job \(id)…", line: "Looking for shelf-bridge…")
                 } else {
-                    EmptyState(title: "This job is no longer in the runner's list.",
-                               line: "The runner keeps finished jobs for 24 hours. Its log may still be in the logs folder.",
+                    EmptyState(title: "This job is no longer in Bridge's list.",
+                               line: "Bridge keeps finished jobs for 24 hours. Its log may still be in the logs folder.",
                                buttonTitle: "Show logs folder", action: model.showLogsFolder)
                 }
             } else {
@@ -40,12 +40,12 @@ private struct Placeholder: View {
     var body: some View {
         let m = model.sidebar
         if model.link != .looking, m.isBlank || (model.link == .absent && model.sessions.isEmpty) {
-            if model.deskServer != nil {
+            if model.benchServer != nil {
                 EmptyState(title: "Start your first session", sleeping: true,
-                           line: "Pick a folder and an agent. The session runs in the background and goes on when Runner Desk quits.",
+                           line: "Pick a folder and an agent. The session runs in the background and goes on when Shelf Bench quits.",
                            buttonTitle: "New session", buttonIcon: .commandLine) { model.showsNewSession = true }
             } else {
-                EmptyState(title: "Runner Desk needs tmux", line: "Sessions run in tmux, out of sight.", mono: "brew install tmux")
+                EmptyState(title: "Shelf Bench needs tmux", line: "Sessions run in tmux, out of sight.", mono: "brew install tmux")
             }
         } else {
             linkState
@@ -55,14 +55,14 @@ private struct Placeholder: View {
     @ViewBuilder private var linkState: some View {
         switch model.link {
         case .looking:
-            EmptyState(title: "Looking for shelf-runner…", line: "Reading heartbeat.json")
+            EmptyState(title: "Looking for shelf-bridge…", line: "Reading heartbeat.json")
         case .absent:
             EmptyState(title: "Choose a session", sleeping: true, line: "A session opens its live terminal here.")
         case .unsupported:
-            EmptyState(title: "Update shelf-runner", line: "This runner speaks another protocol version than Runner Desk.")
+            EmptyState(title: "Update shelf-bridge", line: "This Bridge speaks another protocol version than Shelf Bench.")
         case .connected, .offline:
             if model.sessions.isEmpty && model.sidebar.folders.allSatisfy({ $0.active.isEmpty && $0.finished.isEmpty }) {
-                EmptyState(title: "No jobs yet", sleeping: true, line: "Jobs you hand to an agent in Shelf, or queue with shelf-runner, show up here.")
+                EmptyState(title: "No jobs yet", sleeping: true, line: "Jobs you hand to an agent in Shelf, or queue with shelf-bridge, show up here.")
             } else {
                 EmptyState(title: "Choose a job", sleeping: true, line: "A running job opens its live terminal here.")
             }
@@ -79,7 +79,7 @@ private struct JobPage: View {
         VStack(spacing: 0) {
             Header(model: model, detail: detail, narrow: narrow)
             if case .offline = model.link {
-                Strip(text: "Runner offline. The terminal still works: it is connected to tmux directly.", tone: .rose)
+                Strip(text: "Bridge offline. The terminal still works: it is connected to tmux directly.", tone: .rose)
             }
             if model.link.isOnline, let job = model.job(detail.id), job.asking, JobPhase(state: job.state).isLive {
                 Strip(text: "\(detail.agent) asks" + (job.now.map { ": “\($0)”" } ?? "") + " Answer in the terminal below.", tone: .amber)
@@ -94,7 +94,7 @@ private struct JobPage: View {
         case .terminal(let target):
             LiveTerminal(model: model, jobID: detail.id, target: target)
         case .noTarget:
-            EmptyState(title: "No tmux window", line: "The runner did not report a tmux window for this job.")
+            EmptyState(title: "No tmux window", line: "Bridge did not report a tmux window for this job.")
         case .result(let card):
             ResultPage(model: model, detail: detail, card: card)
         case .approval(let line):
@@ -107,7 +107,7 @@ private struct JobPage: View {
         case .queued:
             Card(title: "Queued", lines: ["It starts when its turn comes."], tone: .muted, icon: .clock)
         case .unknown:
-            Card(title: "Unknown", lines: ["The runner is offline. This is the last state it reported."], tone: .muted)
+            Card(title: "Unknown", lines: ["Bridge is offline. This is the last state it reported."], tone: .muted)
         }
     }
 }
@@ -144,11 +144,11 @@ private struct Header: View {
     }
 }
 
-/// A Desk session: the header (state, "You · Claude", folder, actions), a shared-folder note,
+/// A Bench session: the header (state, "You · Claude", folder, actions), a shared-folder note,
 /// then its live terminal, or once the agent exited the exit code with Restart and End.
 private struct SessionPage: View {
     let model: AppModel
-    let session: DeskSessionInfo
+    let session: BenchSessionInfo
     let narrow: Bool
 
     var body: some View {
@@ -168,7 +168,7 @@ private struct SessionPage: View {
                 .accessibilityElement(children: .combine)
                 Spacer(minLength: Theme.Space.mid)
                 EditorButtons(folder: session.folder)
-                if let server = model.deskServer {
+                if let server = model.benchServer {
                     if !session.isDead {
                         FramedButton(title: "Copy tmux command", icon: .copy, iconOnly: narrow) { server.copyCommand(session.id) }
                         FramedButton(title: "Open in Terminal", icon: .openExternal, iconOnly: narrow) { server.openInTerminal(session.id) }
@@ -180,7 +180,7 @@ private struct SessionPage: View {
             .frame(height: Theme.Metrics.titleBar)
             .overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: Theme.Metrics.divider) }
             let others = model.sessions.filter { $0.folder == session.folder && $0.id != session.id && !$0.isDead }.count
-            if let note = SessionWords.sharedFolder(otherSessions: others, runnerJob: model.liveJob(in: session.folder)) {
+            if let note = SessionWords.sharedFolder(otherSessions: others, bridgeJob: model.liveJob(in: session.folder)) {
                 Strip(text: note, tone: .amber)
             }
             if session.isDead {
@@ -199,9 +199,9 @@ private struct SessionPage: View {
                 }
                 .padding(Theme.Metrics.pagePadding)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            } else if let server = model.deskServer {
+            } else if let server = model.benchServer {
                 TerminalPane(executable: server.server.executable, args: server.server.attach(session.id),
-                             environment: DeskServerRunner.terminalEnvironment(),
+                             environment: BenchServerRunner.terminalEnvironment(),
                              onExit: { model.pollSessions() })
             }
         }
@@ -224,13 +224,13 @@ private struct LiveTerminal: View {
                     TerminalPane(executable: tmux.commands.executable, args: tmux.commands.openView(target, name: name),
                                  onExit: { model.viewExited(jobID: jobID) })
                 case .closed:
-                    Strip(text: "Finishing. The tmux window closed; the result shows here when the runner reports it.", tone: .plain)
+                    Strip(text: "Finishing. The tmux window closed; the result shows here when Bridge reports it.", tone: .plain)
                     Spacer()
                 case .preparing, .none:
                     OpeningWord()
                 }
             } else {
-                EmptyState(title: "tmux not found", line: "Set its path in ~/.config/shelf-runner/config.toml under [tmux].")
+                EmptyState(title: "tmux not found", line: "Set its path in ~/.config/shelf-bridge/config.toml under [tmux].")
             }
         }
         .task(id: jobID) { await model.prepareView(jobID: jobID, target: target) }
@@ -266,7 +266,7 @@ private struct Card: View {
     let title: String
     let lines: [String]
     let tone: Tone
-    var icon: DeskIcon = .alert
+    var icon: BenchIcon = .alert
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.row) {
@@ -313,7 +313,7 @@ private struct ResultPage: View {
             if let log, !log.lines.isEmpty {
                 LogPane(log: log)
             } else if loaded {
-                EmptyState(title: "No log", line: "~/Library/Logs/shelf-runner has no log for this job.")
+                EmptyState(title: "No log", line: "~/Library/Logs/shelf-bridge has no log for this job.")
             }
         }
         .task(id: detail.id) {

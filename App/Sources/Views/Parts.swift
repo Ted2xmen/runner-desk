@@ -1,4 +1,4 @@
-import DeskCore
+import BenchCore
 import SwiftUI
 
 /// The state dot (amber with a ring when the job asks).
@@ -17,7 +17,7 @@ struct StateDot: View {
 
 /// The header's state chip: the label on its tone at 14 %.
 struct LabelChip: View {
-    let label: DeskCore.Label
+    let label: BenchCore.Label
 
     var body: some View {
         Text(label.text)
@@ -34,7 +34,7 @@ struct LabelChip: View {
 /// window, with the label as tooltip and accessibility label.
 struct FramedButton: View {
     let title: String
-    let icon: DeskIcon
+    let icon: BenchIcon
     var iconOnly = false
     let action: () -> Void
     @State private var hovering = false
@@ -101,7 +101,7 @@ struct EmptyState: View {
     var line: String?
     var mono: String?
     var buttonTitle: String?
-    var buttonIcon: DeskIcon = .folder
+    var buttonIcon: BenchIcon = .folder
     var action: (() -> Void)?
 
     var body: some View {

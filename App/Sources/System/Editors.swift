@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// Code editors a folder can open in, when installed. Their icons are the apps' own, read from
-/// the installed bundle at run time (none ship with Desk).
+/// the installed bundle at run time (none ship with Bench).
 struct Editor: Identifiable, Equatable, Sendable {
     let id: String
     let title: String

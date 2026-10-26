@@ -1,21 +1,21 @@
-import DeskCore
+import BenchCore
 import Foundation
-import ShelfRunnerCore
+import ShelfBridgeCore
 
 /// Runs tmux control commands (probe, group size, kill) as argv, never through a shell
-/// (argv arrays, `=` on every target). The tmux path and socket are the runner's (`config.toml [tmux]`),
+/// (argv arrays, `=` on every target). The tmux path and socket are Bridge's (`config.toml [tmux]`),
 /// so both talk to the same server.
 struct TmuxRunner: Sendable {
     let commands: TmuxCommands
 
-    /// nil when tmux is not found (Desk then shows jobs without a terminal).
+    /// nil when tmux is not found (Bench then shows jobs without a terminal).
     static func resolve(paths: Paths = .current()) -> TmuxRunner? {
         let config = (try? Config.load(from: paths.configFile)) ?? Config()
         guard let path = executable(paths: paths) else { return nil }
         return TmuxRunner(commands: TmuxCommands(executable: path, socket: config.tmuxSocket, configuredPath: config.tmuxPath != nil))
     }
 
-    /// The tmux Desk runs: `config.toml [tmux] path`, else the usual places.
+    /// The tmux Bench runs: `config.toml [tmux] path`, else the usual places.
     static func executable(paths: Paths = .current()) -> String? {
         let config = (try? Config.load(from: paths.configFile)) ?? Config()
         return ExecutableLocator.find("tmux", configured: config.tmuxPath, home: paths.home)
@@ -26,7 +26,7 @@ struct TmuxRunner: Sendable {
         let text: String
     }
 
-    /// The child's environment: Desk's own minus `TMUX` (Desk may be started from inside tmux).
+    /// The child's environment: Bench's own minus `TMUX` (Bench may be started from inside tmux).
     static func environment() -> [String: String] {
         var env = ProcessInfo.processInfo.environment
         env["TMUX"] = nil
@@ -114,7 +114,7 @@ struct TmuxRunner: Sendable {
 
     // MARK: views
 
-    /// The job's window is still there, named by its id: the probe the runner uses (`windowAlive`).
+    /// The job's window is still there, named by its id: the probe Bridge uses (`windowAlive`).
     func jobWindowAlive(_ target: TmuxTarget) async -> Bool {
         let out = await run(commands.jobWindow(target))
         return out.status == 0 && TmuxReply.showsJob(out.text, jobID: target.window)
@@ -129,7 +129,7 @@ struct TmuxRunner: Sendable {
     }
 
     /// Kills a view only while another group member holds the job windows: killing the last member would take them with it.
-    /// Desk never kills a `shelf-*` session: only names it made.
+    /// Bench never kills a `shelf-*` session: only names it made.
     func closeView(_ view: String) async {
         guard view.hasPrefix("view-") else { return }
         let size = TmuxReply.groupSize(await run(commands.groupSize(view)).text)

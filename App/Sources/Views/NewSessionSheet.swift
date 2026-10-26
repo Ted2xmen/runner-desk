@@ -1,13 +1,13 @@
 import AppKit
-import DeskCore
+import BenchCore
 import SwiftUI
 
-/// New session: a folder (the runner's enabled ones, recent ones, or another), an agent, Start.
+/// New session: a folder (Bridge's enabled ones, recent ones, or another), an agent, Start.
 /// The session is attended: it runs in front of the user, never unattended.
 struct NewSessionSheet: View {
     let model: AppModel
     @State private var folder: String?
-    @State private var agent: DeskAgent = .claude
+    @State private var agent: BenchAgent = .claude
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -33,14 +33,14 @@ struct NewSessionSheet: View {
             Text("AGENT").font(Theme.Fonts.sectionCaps).tracking(Theme.Fonts.sectionCapsTracking).foregroundStyle(Theme.muted)
                 .padding(.top, Theme.Space.small)
             Picker("Agent", selection: $agent) {
-                ForEach(DeskAgent.allCases, id: \.self) { Text($0.title).tag($0) }
+                ForEach(BenchAgent.allCases, id: \.self) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
             if let folder, let note = note(for: folder) {
                 Text(note).font(Theme.Fonts.rowMeta).foregroundStyle(Theme.amber)
             }
-            Text("The session runs in the background and goes on when Runner Desk quits.")
+            Text("The session runs in the background and goes on when Shelf Bench quits.")
                 .font(Theme.Fonts.rowMeta).foregroundStyle(Theme.muted)
             HStack {
                 Spacer()
@@ -63,7 +63,7 @@ struct NewSessionSheet: View {
         .onDisappear { model.newSessionFolder = nil }
     }
 
-    /// The runner's folders, recent ones, and one just chosen.
+    /// Bridge's folders, recent ones, and one just chosen.
     private var choices: [(path: String, source: String)] {
         var list = model.sessionFolders
         if let folder, !list.contains(where: { $0.path == folder }) { list.insert((folder, "chosen"), at: 0) }
@@ -72,7 +72,7 @@ struct NewSessionSheet: View {
 
     private func note(for folder: String) -> String? {
         if let job = model.liveJob(in: folder) {
-            return "Runner job running here: \(job). You can still start a session."
+            return "Bridge job running here: \(job). You can still start a session."
         }
         let others = model.sessions.filter { $0.folder == folder && !$0.isDead }.count
         return others > 0 ? "Another session is running here. Two agents may edit the same files." : nil

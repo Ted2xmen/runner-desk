@@ -1,9 +1,9 @@
-import DeskCore
+import BenchCore
 import SwiftUI
 
-/// The window-wide status bar, one mono line like tmux's: Settings, the shelf-runner state and the
+/// The window-wide status bar, one mono line like tmux's: Settings, the shelf-bridge state and the
 /// Shelf pairing at the left; This Mac and the agent limits pushed to the right. A click on This Mac or the limits opens the full figures.
-/// Narrow: only the segments that are not fine. Without a runner: the install line.
+/// Narrow: only the segments that are not fine. Without Bridge: the install line.
 struct StatusBar: View {
     let model: AppModel
     let narrow: Bool
@@ -28,12 +28,12 @@ struct StatusBar: View {
             connection(m.connection)
             if let pairing = m.pairing {
                 Separator()
-                // Room goes to the runner, This Mac and the limits first.
+                // Room goes to Bridge, This Mac and the limits first.
                 PairingSegment(line: pairing).layoutPriority(-1)
             }
             Spacer(minLength: Theme.Space.mid)
-            if m.showsRunnerFooter {
-                RunnerAbsent(copy: model.copy)
+            if m.showsBridgeFooter {
+                BridgeAbsent(copy: model.copy)
             } else if !m.mac.isEmpty {
                 Button { showsDetails.toggle() } label: {
                     HStack(spacing: 0) {
@@ -70,12 +70,12 @@ struct StatusBar: View {
         narrow ? cells.filter { $0.tone != .plain } : cells
     }
 
-    /// The runner's state, tinted; its version, heartbeat age and slots live in the tooltip, which
+    /// Bridge's state, tinted; its version, heartbeat age and slots live in the tooltip, which
     /// alone redraws with the clock.
     private func connection(_ line: ConnectionLine) -> some View {
         Ticking(active: line.showsAge) { now in
             HStack(spacing: Theme.Space.small) {
-                IconView(icon: .runner, size: Theme.Metrics.iconSmall).foregroundStyle(Theme.color(line.tone))
+                IconView(icon: .bridge, size: Theme.Metrics.iconSmall).foregroundStyle(Theme.color(line.tone))
                 Text(line.text).foregroundStyle(line.tone == .green ? Theme.text2 : Theme.color(line.tone))
             }
             .frame(height: Theme.Metrics.statusBar)
@@ -173,15 +173,15 @@ private struct LimitsSegment: View {
     }
 }
 
-/// No runner: the install line and a copy button.
-private struct RunnerAbsent: View {
+/// No Bridge: the install line and a copy button.
+private struct BridgeAbsent: View {
     let copy: (String) -> Void
 
     var body: some View {
         HStack(spacing: Theme.Space.small) {
-            Text("Autonomous jobs need shelf-runner").foregroundStyle(Theme.text2)
-            Text(AppModel.runnerInstall).foregroundStyle(Theme.muted).truncationMode(.middle).textSelection(.enabled)
-            Button { copy(AppModel.runnerInstall) } label: {
+            Text("Autonomous jobs need shelf-bridge").foregroundStyle(Theme.text2)
+            Text(AppModel.bridgeInstall).foregroundStyle(Theme.muted).truncationMode(.middle).textSelection(.enabled)
+            Button { copy(AppModel.bridgeInstall) } label: {
                 IconView(icon: .copy, size: Theme.Metrics.iconSmall).foregroundStyle(Theme.icon)
                     .frame(width: Theme.Metrics.hitTarget, height: Theme.Metrics.statusBar)
                     .contentShape(Rectangle())

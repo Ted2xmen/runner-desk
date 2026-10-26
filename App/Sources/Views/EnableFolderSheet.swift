@@ -1,7 +1,7 @@
-import DeskCore
+import BenchCore
 import SwiftUI
 
-/// "Enable this folder in shelf-runner?": the folder, what enabling means, Cancel or Enable.
+/// "Enable this folder in shelf-bridge?": the folder, what enabling means, Cancel or Enable.
 /// Nothing is enabled before Enable; without the CLI the command is offered to copy instead.
 struct EnableFolderSheet: View {
     let model: AppModel

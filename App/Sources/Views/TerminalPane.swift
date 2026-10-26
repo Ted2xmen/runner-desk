@@ -12,7 +12,7 @@ import SwiftUI
 struct TerminalPane: View {
     let executable: String
     let args: [String]
-    /// The client's environment; Desk sessions also drop `TMUX_TMPDIR`.
+    /// The client's environment; Bench sessions also drop `TMUX_TMPDIR`.
     var environment: [String] = TerminalPane.defaultEnvironment
     let onExit: @MainActor () -> Void
 
@@ -23,10 +23,10 @@ struct TerminalPane: View {
         }
     }
 
-    /// `environment()` computed once: the process environment does not change while Desk runs.
+    /// `environment()` computed once: the process environment does not change while Bench runs.
     static let defaultEnvironment: [String] = environment()
 
-    /// Desk's environment without `TMUX`, as a 256-color UTF-8 terminal.
+    /// Bench's environment without `TMUX`, as a 256-color UTF-8 terminal.
     static func environment() -> [String] {
         var env = TmuxRunner.environment()
         env["TERM"] = "xterm-256color"
@@ -51,7 +51,7 @@ private struct TerminalSurface: NSViewRepresentable {
         let hasSize = initialSize.width > 0 && initialSize.height > 0
         // A zero frame takes its grid from the options: the last size seen beats 80x25.
         var options = TerminalOptions.default
-        if !hasSize, let last = DeskSessionSize.lastKnown {
+        if !hasSize, let last = BenchSessionSize.lastKnown {
             options.cols = last.columns
             options.rows = last.rows
         }
@@ -63,7 +63,7 @@ private struct TerminalSurface: NSViewRepresentable {
         view.setAccessibilityLabel("Terminal")
         if hasSize {
             let grid = view.terminalDimensions
-            DeskSessionSize.record(columns: grid.cols, rows: grid.rows)
+            BenchSessionSize.record(columns: grid.cols, rows: grid.rows)
         }
         view.startProcess(executable: executable, args: args, environment: environment, execName: "tmux")
         DispatchQueue.main.async { view.window?.makeFirstResponder(view) }
@@ -100,7 +100,7 @@ private struct TerminalSurface: NSViewRepresentable {
         init(onExit: @escaping @MainActor () -> Void) { self.onExit = onExit }
 
         func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {
-            DeskSessionSize.record(columns: newCols, rows: newRows)
+            BenchSessionSize.record(columns: newCols, rows: newRows)
         }
         func setTerminalTitle(source: LocalProcessTerminalView, title: String) {}
         func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}

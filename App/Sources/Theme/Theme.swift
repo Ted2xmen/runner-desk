@@ -1,5 +1,5 @@
 import AppKit
-import DeskCore
+import BenchCore
 import SwiftUI
 
 /// The one set of design tokens: Shelf's palette v2 in a terminal-first shell (sidebar, work
@@ -53,7 +53,7 @@ enum Theme {
         dark ? (NSColor(hex: 0x131110), NSColor(hex: 0xF3F1EE)) : (NSColor(hex: 0xFFFFFF), NSColor(hex: 0x1A1715))
     }
 
-    /// The 16 ANSI colors of the log pane (protocol v1: 0–15 are the theme's palette); xterm's.
+    /// The 16 ANSI colors of the log pane (protocol v2: 0–15 are the theme's palette); xterm's.
     static let ansi: [Color] = [
         0x000000, 0xCD3131, 0x0DBC79, 0xE5E510, 0x2472C8, 0xBC3FBC, 0x11A8CD, 0xE5E5E5,
         0x666666, 0xF14C4C, 0x23D18B, 0xF5F543, 0x3B8EEA, 0xD670D6, 0x29B8DB, 0xFFFFFF,
@@ -205,7 +205,7 @@ extension NSColor {
 }
 
 /// Hugeicons Free, stroke rounded (MIT, design/icons/LICENSE-hugeicons.md).
-enum DeskIcon: String {
+enum BenchIcon: String {
     case commandLine = "CommandLine"
     case copy = "Copy01"
     case openExternal = "LinkSquare02"
@@ -217,8 +217,8 @@ enum DeskIcon: String {
     case chevronDown = "ArrowDown01"
     case chevronRight = "ArrowRight01"
     case file = "File01"
-    /// shelf-runner, the background service.
-    case runner = "ServerStack01"
+    /// shelf-bridge, the background service.
+    case bridge = "ServerStack01"
     /// Claude's mark (Simple Icons, CC0; design/icons/agents/README.md).
     case agentClaude = "AgentClaude"
     /// Codex's mark (LobeHub Icons, MIT; design/icons/agents/README.md).
@@ -231,7 +231,7 @@ enum DeskIcon: String {
 }
 
 struct IconView: View {
-    let icon: DeskIcon
+    let icon: BenchIcon
     var size: CGFloat = Theme.Metrics.icon
     /// A multicolor icon drawn as a one-color silhouette in the foreground style.
     var monochrome = false

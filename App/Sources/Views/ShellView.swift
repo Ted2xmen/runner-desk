@@ -1,4 +1,4 @@
-import DeskCore
+import BenchCore
 import SwiftUI
 
 /// The terminal-first shell: the sidebar under the traffic lights, the work area edge to edge,

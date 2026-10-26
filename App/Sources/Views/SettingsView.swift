@@ -1,8 +1,8 @@
 import AppKit
-import DeskCore
+import BenchCore
 import SwiftUI
 
-/// The Settings window (Cmd+,): the appearance choice, the runner as the status bar sees it
+/// The Settings window (Cmd+,): the appearance choice, Bridge as the status bar sees it
 /// (read-only), and the app's name and version.
 struct SettingsView: View {
     let model: AppModel
@@ -25,7 +25,7 @@ struct SettingsView: View {
                 }
             }
 
-            RunnerSection(settings: RunnerSettings.derive(sidebar: model.sidebar, status: model.status, home: NSHomeDirectory()),
+            BridgeSection(settings: BridgeSettings.derive(sidebar: model.sidebar, status: model.status, home: NSHomeDirectory()),
                           copy: model.copy, addFolder: chooseFolder)
 
             Text(Self.aboutLine)
@@ -48,28 +48,28 @@ struct SettingsView: View {
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.prompt = "Choose"
-        panel.message = "Choose a folder for shelf-runner to read."
+        panel.message = "Choose a folder for shelf-bridge to read."
         if panel.runModal() == .OK, let url = panel.url { model.askToEnable(url.path, from: .settings) }
     }
 
     private static var aboutLine: String {
         let info = Bundle.main.infoDictionary ?? [:]
-        let name = info["CFBundleDisplayName"] as? String ?? info["CFBundleName"] as? String ?? "Runner Desk"
+        let name = info["CFBundleDisplayName"] as? String ?? info["CFBundleName"] as? String ?? "Shelf Bench"
         let version = info["CFBundleShortVersionString"] as? String ?? "?"
         let build = info["CFBundleVersion"] as? String
         return build.map { "\(name) \(version) (\($0))" } ?? "\(name) \(version)"
     }
 }
 
-/// shelf-runner's state, the Shelf pairing and the folders the runner reads. Without a runner's
+/// shelf-bridge's state, the Shelf pairing and the folders Bridge reads. Without Bridge's
 /// status only the state and its hint show.
-private struct RunnerSection: View {
-    let settings: RunnerSettings
+private struct BridgeSection: View {
+    let settings: BridgeSettings
     let copy: (String) -> Void
     let addFolder: () -> Void
 
     var body: some View {
-        SettingsSection(title: "Runner") {
+        SettingsSection(title: "Bridge") {
             status
             if let pairing = settings.pairing {
                 SettingsDivider()
@@ -86,7 +86,7 @@ private struct RunnerSection: View {
         let line = settings.connection
         return VStack(alignment: .leading, spacing: Theme.SettingsPane.lineGap) {
             SettingsRowHeader(title: "Status") {
-                IconView(icon: .runner, size: Theme.Metrics.iconSmall).foregroundStyle(Theme.color(line.tone))
+                IconView(icon: .bridge, size: Theme.Metrics.iconSmall).foregroundStyle(Theme.color(line.tone))
                 Text(line.text).foregroundStyle(line.tone == .green ? Theme.text2 : Theme.color(line.tone))
             }
             Ticking(active: line.showsAge) { now in
@@ -97,7 +97,7 @@ private struct RunnerSection: View {
             if let paused = settings.pausedLine { SettingsLine(paused, tone: .amber) }
             if let note = settings.statusNote { SettingsLine(note) }
             if let command = settings.statusCommand {
-                SettingsCommandRow(command: command.text ?? AppModel.runnerInstall, copy: copy)
+                SettingsCommandRow(command: command.text ?? AppModel.bridgeInstall, copy: copy)
             }
         }
         .accessibilityElement(children: .contain)
@@ -112,7 +112,7 @@ private struct RunnerSection: View {
             }
             if let keyId = pairing.keyId {
                 HStack(spacing: Theme.Space.small) {
-                    Text("Runner key").foregroundStyle(Theme.muted)
+                    Text("Bridge key").foregroundStyle(Theme.muted)
                     Text(keyId).font(Theme.SettingsFonts.mono).foregroundStyle(Theme.text2).textSelection(.enabled)
                 }
                 .font(Theme.SettingsFonts.rowNote)

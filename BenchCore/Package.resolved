@@ -1,0 +1,14 @@
+{
+  "originHash" : "d0820ce419c8fec6cee40510c734ad9e442e70d3a486e5336c08cc859364ec76",
+  "pins" : [
+    {
+      "identity" : "shelf-bridge",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Ted2xmen/shelf-bridge",
+      "state" : {
+        "revision" : "f815abd57072efef572f5244cee62b7ae1bd3866"
+      }
+    }
+  ],
+  "version" : 3
+}
